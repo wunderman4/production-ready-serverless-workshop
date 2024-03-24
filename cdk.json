@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/production-ready-serverless-workshop.ts",
+  "app": "npx ts-node --prefer-ts-exts cdk/main.ts",
   "watch": {
     "include": [
       "**"

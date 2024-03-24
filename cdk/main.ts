@@ -1,10 +1,25 @@
 #!/usr/bin/env node
-import 'source-map-support/register';
-import * as cdk from 'aws-cdk-lib';
-import { ProductionReadyServerlessWorkshopStack } from '../lib/production-ready-serverless-workshop-stack';
+import * as cdk from "aws-cdk-lib";
+import "source-map-support/register";
+import { ApiStack } from "./constructs/ApiStack/ApiStack";
+import { DatabaseStack } from "./constructs/DatabaseStack/DatabaseStack";
 
 const app = new cdk.App();
-new ProductionReadyServerlessWorkshopStack(app, 'ProductionReadyServerlessWorkshopStack', {
+
+let stageName = app.node.tryGetContext("stageName");
+
+if (!stageName) {
+  console.log("Defaulting stage name to dev");
+  stageName = "dev";
+}
+
+const dbStack = new DatabaseStack(app, `DatabaseStack-${stageName}`, {
+  stageName,
+});
+
+new ApiStack(app, `ApiStack-${stageName}`, {
+  stageName,
+  restaurantsTable: dbStack.restaurantsTable,
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
