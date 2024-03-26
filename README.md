@@ -50,10 +50,12 @@ _.js and _.d.ts files are git ignored because these are generated when running b
 
 ## Questions
 
-- What about the bin leftover in the package.json?
+- After deleting the folders as recommended, should the bin leftover in the package.json be removed as well? Should something else replace it?
   ```
   "bin": {
       "production-ready-serverless-workshop": "bin/production-ready-serverless-workshop.js"
   },
   ```
-- Which package is the one that triggers the docker build?
+- Which dependency is the one that triggers the docker dependency?
+  - The nodeJsFn is what triggers the docker build because node could require packages that contain direct binaries which need to work in the lambda runtime.
+- Whats with the duplicate exports from client-lib vs cognito-lib ex: ScanCommand

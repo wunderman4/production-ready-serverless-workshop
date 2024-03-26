@@ -1,17 +1,15 @@
 import { Handler } from "aws-lambda";
-import http from "axios";
+import { sign } from "aws4";
+import http, { AxiosHeaders } from "axios";
 import * as fs from "fs";
+import * as URL from "url";
 // Not sure why this has to be a require but the import doesn't work, and their docs also use require...
 const mustache = require("mustache");
 
-/**
- * Notice that the variable html is declared and assigned OUTSIDE the handler function.
- * The declaration and assignment code will run ONLY the first time our code executes in a new worker instance (an instance of a micro VM running this Lambda function).
- * The same goes for any variables you declare outside the handler function, such as the fs module which we required at the top.
- * This helps improve performance and allows us to load and cache static data only on the first invocation, which helps improve performance on subsequent invocations.
- */
-let html: string;
 const restaurantsApiRoot = process.env.restaurants_api || "";
+const cognitoUserPoolId = process.env.cognito_user_pool_id;
+const cognitoClientId = process.env.cognito_client_id;
+const awsRegion = process.env.AWS_REGION;
 const days = [
   "Sunday",
   "Monday",
@@ -22,23 +20,31 @@ const days = [
   "Saturday",
 ];
 
-const loadHtml = () => {
-  if (!html) {
-    html = fs.readFileSync("static/index.html", "utf-8");
-  }
-  return html;
-};
+const template = fs.readFileSync("static/index.html", "utf-8");
 
 const getRestaurants = async () => {
-  const httpReq = http.get(restaurantsApiRoot);
+  console.log("GETTING RESTAURANTS: ", restaurantsApiRoot);
+  const url = URL.parse(restaurantsApiRoot);
+  const httpReq = http.get(restaurantsApiRoot, {
+    headers: sign({
+      host: url.hostname || undefined,
+      path: url.pathname || undefined,
+    })?.headers as AxiosHeaders,
+  });
   return (await httpReq).data;
 };
 
 export const handler: Handler = async (event, context) => {
-  const template = loadHtml();
   const restaurants = await getRestaurants();
   const dayOfWeek = days[new Date().getDay()];
-  const renderedHtml = mustache.render(template, { dayOfWeek, restaurants });
+  const renderedHtml = mustache.render(template, {
+    awsRegion,
+    cognitoClientId,
+    cognitoUserPoolId,
+    dayOfWeek,
+    restaurants,
+    searchUrl: `${restaurantsApiRoot}/search`,
+  });
 
   return {
     statusCode: 200,

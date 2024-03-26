@@ -2,6 +2,7 @@
 import * as cdk from "aws-cdk-lib";
 import "source-map-support/register";
 import { ApiStack } from "./constructs/ApiStack/ApiStack";
+import { CognitoStack } from "./constructs/CognitoStack/CognitoStack";
 import { DatabaseStack } from "./constructs/DatabaseStack/DatabaseStack";
 
 const app = new cdk.App();
@@ -17,9 +18,15 @@ const dbStack = new DatabaseStack(app, `DatabaseStack-${stageName}`, {
   stageName,
 });
 
+const cognitoStack = new CognitoStack(app, `CognitoStack-${stageName}`, {
+  stageName,
+});
+
 new ApiStack(app, `ApiStack-${stageName}`, {
   stageName,
   restaurantsTable: dbStack.restaurantsTable,
+  cognitoUserPool: cognitoStack.cognitoUserPool,
+  webUserPoolClient: cognitoStack.webUserPoolClient,
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
