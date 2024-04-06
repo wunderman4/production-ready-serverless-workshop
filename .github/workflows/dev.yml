@@ -1,0 +1,48 @@
+# arn:aws:iam::990519884353:role/GitHubActionsRole
+
+name: deploy dev
+on:
+  push:
+    branches: [ main ]
+jobs:
+  deploy:
+    # concurrency prevents concurrent builds
+    concurrency: dev-environment
+    runs-on: ubuntu-latest
+    # permissions are required to use the AWS CLI via OIDC Provider.
+    permissions:
+      id-token: write
+      contents: write
+    
+    steps: 
+      # Checkout the code from the repository under the /github/workspace directory
+      #  so your jobs can access it.
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 'latest'
+      
+      - name : Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::990519884353:role/GitHubActionsRole
+          role-session-name: GithubActionsSession
+      
+      - name: npm ci
+        run: npm ci
+      
+      - name: install CDK
+        run: npm install -g aws-cdk
+      
+      - name: deploy to dev
+        run: cdk deploy --all --require-approval never
+      
+      - name: export env
+        run: npm run extractEnvVars
+      
+      # - name: run integration tests
+      #   run: npm run test
+
+      # - name: run end-to-end tests
+      #   run: npm run test:e2e
