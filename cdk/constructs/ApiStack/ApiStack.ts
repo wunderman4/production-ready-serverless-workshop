@@ -1,4 +1,4 @@
-import { Fn, Stack, StackProps } from "aws-cdk-lib";
+import { CfnOutput, Fn, Stack, StackProps } from "aws-cdk-lib";
 import {
   AuthorizationType,
   CfnAuthorizer,
@@ -31,7 +31,6 @@ export class ApiStack extends Stack {
     });
     // @ts-ignore - TODO: fix this one.
     const apiLogicalId = this.getLogicalId(api.node.defaultChild);
-    console.log("apiLogicalId: ", apiLogicalId);
 
     const getIndexFunction = new NodejsFunction(this, "GetIndex", {
       runtime: Runtime.NODEJS_LATEST,
@@ -48,7 +47,6 @@ export class ApiStack extends Stack {
         },
       },
       environment: {
-        // restaurants_api: api.urlForPath("/restaurants"),
         restaurants_api: Fn.sub(
           `https://\${${apiLogicalId}}.execute-api.\${AWS::Region}.amazonaws.com/${props.stageName}/restaurants`
         ),
@@ -88,11 +86,11 @@ export class ApiStack extends Stack {
     );
 
     const cognitoAuthorizer = new CfnAuthorizer(this, "CognitoAuthorizer", {
-      restApiId: api.restApiId,
-      name: "CognitoAuthorizer",
-      type: "COGNITO_USER_POOLS",
       identitySource: "method.request.header.Authorization",
+      name: "CognitoAuthorizer",
       providerArns: [props.cognitoUserPool.userPoolArn],
+      restApiId: api.restApiId,
+      type: "COGNITO_USER_POOLS",
     });
 
     api.root.addMethod("GET", getIndexLambdaIntegration);
@@ -120,5 +118,9 @@ export class ApiStack extends Stack {
       ],
     });
     getIndexFunction.role?.addToPrincipalPolicy(apiInvokePolicy);
+
+    new CfnOutput(this, "ApiUrl", {
+      value: api.url ?? "Something went wrong with the deployment",
+    });
   }
 }

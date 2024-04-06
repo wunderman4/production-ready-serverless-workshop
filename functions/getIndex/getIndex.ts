@@ -25,13 +25,19 @@ const template = fs.readFileSync("static/index.html", "utf-8");
 const getRestaurants = async () => {
   console.log("GETTING RESTAURANTS: ", restaurantsApiRoot);
   const url = URL.parse(restaurantsApiRoot);
-  const httpReq = http.get(restaurantsApiRoot, {
-    headers: sign({
-      host: url.hostname || undefined,
-      path: url.pathname || undefined,
-    })?.headers as AxiosHeaders,
-  });
-  return (await httpReq).data;
+  try {
+    const httpReq = http.get(restaurantsApiRoot, {
+      headers: sign({
+        host: url.hostname || undefined,
+        path: url.pathname || undefined,
+      })?.headers as AxiosHeaders,
+    });
+    const data = (await httpReq).data;
+    return data;
+  } catch (e) {
+    console.error("Error getting restaurants: ", e);
+    return [];
+  }
 };
 
 export const handler: Handler = async (event, context) => {
