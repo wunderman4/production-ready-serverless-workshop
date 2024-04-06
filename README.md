@@ -10,24 +10,24 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 ## Useful commands
 
+- `aws sso login` logs you in for cdk commands
 - `npm run build` compile typescript to js
 - `npm run watch` watch for changes and compile
-- `npm run test` perform the jest unit tests
-- `npx cdk deploy` deploy this stack to your default AWS account/region
-- `npx cdk diff` compare deployed stack with current state
-- `npx cdk synth` emits the synthesized CloudFormation template
-- `aws sso login` logs you in for cdk commands
-- `cdk:deploy` builds before deploying.
+- `npm run test` perform the jest unit tests in handler mode
+- `npm run test:e2e` perform the jest tests in http mode
+- `npm run deploy` builds before deploying. (need to be logged in)
+- `npm run extractEnvVars` runs a script to gather all env variables.
 - `cdk deploy -- context stageName=branch-name` deploys the app to a new environment.
 - `cdk destroy --context stageName=branch-name` destroys the app with the stageName provided.
-- ` ./export-env.sh ApiStack-dev us-east-1` runs a script to gather all env variables.
+- `npx cdk diff` compare deployed stack with current state
+- `npx cdk synth` emits the synthesized CloudFormation template
 
 ## Structure overview
 
-- /bin folder: this contains the entry point of your CDK application
-- /lib folder: this is where you configure your stacks and constructs
-- /test folder: this is where you add tests for your CDK code
-
+- /cdk folder: this contains the entry point of your CDK application
+  - /constructs folder: where your stacks live.
+- /functions folder: this is where you Lambdas live.
+- /tests folder: this is where you add tests for your CDK code
 - cdk.json: this is the manifest file for the CDK
 - AWS SDK is a dev dependency to the project instead of a production dependency. The reason for this is that the AWS SDK is already available in the Lambda execution environment, so we don't need to include it in our bundle, which helps reduce deployment time and also helps improve Lambda's cold start performance as well.
 
@@ -46,16 +46,8 @@ export const hello: Handler = async (event, context) => ({
 });
 ```
 
-_.js and _.d.ts files are git ignored because these are generated when running build and should not be committed. See the `.gitignore` for more info
+> _.js and _.d.ts files are git ignored because these are generated when running build and should not be committed. See the `.gitignore` for more info
 
 ## Questions
 
-- After deleting the folders as recommended, should the bin leftover in the package.json be removed as well? Should something else replace it?
-  ```
-  "bin": {
-      "production-ready-serverless-workshop": "bin/production-ready-serverless-workshop.js"
-  },
-  ```
-- Which dependency is the one that triggers the docker dependency?
-  - The nodeJsFn is what triggers the docker build because node could require packages that contain direct binaries which need to work in the lambda runtime.
 - Whats with the duplicate exports from client-lib vs cognito-lib ex: ScanCommand
