@@ -9,6 +9,7 @@ interface CognitoStackProps extends StackProps {
 export class CognitoStack extends Stack {
   cognitoUserPool: UserPool;
   webUserPoolClient: UserPoolClient;
+  serverUserPoolClient: UserPoolClient;
   constructor(scope: Construct, id: string, props: CognitoStackProps) {
     super(scope, id, props);
 
@@ -38,10 +39,14 @@ export class CognitoStack extends Stack {
       preventUserExistenceErrors: true,
     });
 
-    new UserPoolClient(this, "ServerUserPoolClient", {
-      userPool: this.cognitoUserPool,
-      authFlows: { adminUserPassword: true },
-      preventUserExistenceErrors: true,
-    });
+    this.serverUserPoolClient = new UserPoolClient(
+      this,
+      "ServerUserPoolClient",
+      {
+        userPool: this.cognitoUserPool,
+        authFlows: { adminUserPassword: true },
+        preventUserExistenceErrors: true,
+      }
+    );
   }
 }

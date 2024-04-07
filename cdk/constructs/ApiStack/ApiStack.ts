@@ -8,7 +8,7 @@ import {
 import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { Table } from "aws-cdk-lib/aws-dynamodb";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
-import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
+import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Construct } from "constructs";
 
@@ -17,23 +17,24 @@ interface ApiStackProps extends StackProps {
   restaurantsTable: Table;
   cognitoUserPool: UserPool;
   webUserPoolClient: UserPoolClient;
+  serverUserPoolClient: UserPoolClient;
+  serviceName: string;
 }
 
 export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
-    const { stageName, restaurantsTable } = props;
 
-    const api = new RestApi(this, `${stageName}-MyApi`, {
+    const api = new RestApi(this, `${props.stageName}-MyApi`, {
       deployOptions: {
-        stageName,
+        stageName: props.stageName,
       },
     });
     // @ts-ignore - TODO: fix this one.
     const apiLogicalId = this.getLogicalId(api.node.defaultChild);
 
     const getIndexFunction = new NodejsFunction(this, "GetIndex", {
-      runtime: Runtime.NODEJS_LATEST,
+      runtime: Runtime.NODEJS_20_X,
       handler: "handler",
       entry: "functions/getIndex/getIndex.ts",
       bundling: {
@@ -54,28 +55,67 @@ export class ApiStack extends Stack {
         cognito_client_id: props.webUserPoolClient.userPoolClientId,
       },
     });
+    getIndexFunction.role?.addToPrincipalPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["execute-api:Invoke"],
+        resources: [
+          Fn.sub(
+            `arn:aws:execute-api:\${AWS::Region}:\${AWS::AccountId}:\${${apiLogicalId}}/${props.stageName}/GET/restaurants`
+          ),
+        ],
+      })
+    );
 
-    const getRestaurantsFunction = new Function(this, "GetRestaurants", {
-      runtime: Runtime.NODEJS_LATEST,
-      handler: "getRestaurants/getRestaurants.handler",
-      code: Code.fromAsset("functions"),
+    const getRestaurantsFunction = new NodejsFunction(this, "GetRestaurants", {
+      runtime: Runtime.NODEJS_20_X,
+      handler: "handler",
+      entry: "functions/getRestaurants/getRestaurants.ts",
       environment: {
-        default_results: "8",
-        restaurants_table: restaurantsTable.tableName,
+        restaurants_table: props.restaurantsTable.tableName,
+        service_name: props.serviceName,
+        stage_name: props.stageName,
       },
     });
-    restaurantsTable.grantReadData(getRestaurantsFunction);
+    props.restaurantsTable.grantReadData(getRestaurantsFunction);
+    getRestaurantsFunction.role?.addToPrincipalPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["ssm:GetParameters*"],
+        resources: [
+          Fn.sub(
+            `arn:aws:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter/${props.serviceName}/${props.stageName}/get-restaurants/config`
+          ),
+        ],
+      })
+    );
 
-    const searchRestaurantsFunction = new Function(this, "SearchRestaurants", {
-      runtime: Runtime.NODEJS_LATEST,
-      handler: "searchRestaurants/searchRestaurants.handler",
-      code: Code.fromAsset("functions"),
-      environment: {
-        default_results: "8",
-        restaurants_table: restaurantsTable.tableName,
-      },
-    });
-    restaurantsTable.grantReadData(searchRestaurantsFunction);
+    const searchRestaurantsFunction = new NodejsFunction(
+      this,
+      "SearchRestaurants",
+      {
+        runtime: Runtime.NODEJS_20_X,
+        handler: "handler",
+        entry: "functions/searchRestaurants/searchRestaurants.ts",
+        environment: {
+          restaurants_table: props.restaurantsTable.tableName,
+          service_name: props.serviceName,
+          stage_name: props.stageName,
+        },
+      }
+    );
+    props.restaurantsTable.grantReadData(searchRestaurantsFunction);
+    searchRestaurantsFunction.role?.addToPrincipalPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["ssm:GetParameters*"],
+        resources: [
+          Fn.sub(
+            `arn:aws:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter/${props.serviceName}/${props.stageName}/search-restaurants/config`
+          ),
+        ],
+      })
+    );
 
     const getIndexLambdaIntegration = new LambdaIntegration(getIndexFunction);
     const getRestaurantsLambdaIntegration = new LambdaIntegration(
@@ -108,19 +148,12 @@ export class ApiStack extends Stack {
         },
       });
 
-    const apiInvokePolicy = new PolicyStatement({
-      effect: Effect.ALLOW,
-      actions: ["execute-api:Invoke"],
-      resources: [
-        Fn.sub(
-          `arn:aws:execute-api:\${AWS::Region}:\${AWS::AccountId}:\${${apiLogicalId}}/${props.stageName}/GET/restaurants`
-        ),
-      ],
-    });
-    getIndexFunction.role?.addToPrincipalPolicy(apiInvokePolicy);
-
     new CfnOutput(this, "ApiUrl", {
       value: api.url ?? "Something went wrong with the deployment",
+    });
+
+    new CfnOutput(this, "CognitoServerClientId", {
+      value: props.serverUserPoolClient.userPoolClientId,
     });
   }
 }

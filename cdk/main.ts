@@ -23,10 +23,12 @@ const cognitoStack = new CognitoStack(app, `CognitoStack-${stageName}`, {
 });
 
 new ApiStack(app, `ApiStack-${stageName}`, {
+  serviceName: "cdk-bootstrap",
   stageName,
   restaurantsTable: dbStack.restaurantsTable,
   cognitoUserPool: cognitoStack.cognitoUserPool,
   webUserPoolClient: cognitoStack.webUserPoolClient,
+  serverUserPoolClient: cognitoStack.serverUserPoolClient,
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
