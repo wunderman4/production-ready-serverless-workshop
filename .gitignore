@@ -1,5 +1,5 @@
 .env
-
+.env.local
 ## these are ignored because they are the output of the build process
 *.js
 !jest.config.js

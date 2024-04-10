@@ -8,10 +8,16 @@ import { DatabaseStack } from "./constructs/DatabaseStack/DatabaseStack";
 const app = new cdk.App();
 
 let stageName = app.node.tryGetContext("stageName");
+let ssmStageName = app.node.tryGetContext("ssmStageName");
 
 if (!stageName) {
-  console.log("Defaulting stage name to dev");
+  console.log("Defaulting stage name to: dev");
   stageName = "dev";
+}
+
+if (!ssmStageName) {
+  console.log(`Defaulting ssm stage name to: ${stageName}`);
+  ssmStageName = stageName;
 }
 
 const dbStack = new DatabaseStack(app, `DatabaseStack-${stageName}`, {
@@ -25,6 +31,7 @@ const cognitoStack = new CognitoStack(app, `CognitoStack-${stageName}`, {
 new ApiStack(app, `ApiStack-${stageName}`, {
   serviceName: "cdk-bootstrap",
   stageName,
+  ssmStageName,
   restaurantsTable: dbStack.restaurantsTable,
   cognitoUserPool: cognitoStack.cognitoUserPool,
   webUserPoolClient: cognitoStack.webUserPoolClient,

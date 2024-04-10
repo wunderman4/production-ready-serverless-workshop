@@ -3,6 +3,8 @@ import * as awsCred from "awscred";
 import { config } from "dotenv";
 import { promisify } from "util";
 
+// Local env file loaded first because dotenv picks the first of a duplicate key
+config({ path: "/./.env.local" });
 config();
 
 let initialized = false;

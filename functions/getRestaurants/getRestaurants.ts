@@ -6,8 +6,11 @@ import { Context } from "aws-lambda";
 
 const dynamoClient = new DynamoDB();
 const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
-const { service_name, stage_name } = process.env;
-
+const { service_name, ssm_stage_name } = process.env;
+const middyCacheEnabled = JSON.parse(process.env.middy_cache_enabled || "true");
+const middyCacheExpiryMilliseconds = parseInt(
+  process.env.middy_cache_expiry_milliseconds || "60000"
+);
 const tableName = process.env.restaurants_table;
 
 const getRestaurants = async (count: number) => {
@@ -31,11 +34,11 @@ interface CustomContext extends Context {
 export const handler = middy<unknown, any, Error, CustomContext>()
   .use(
     ssm({
-      cache: true,
-      cacheExpiry: 1 * 60 * 1000, // 1 minute
+      cache: middyCacheEnabled,
+      cacheExpiry: middyCacheExpiryMilliseconds,
       setToContext: true,
       fetchData: {
-        config: `/${service_name}/${stage_name}/get-restaurants/config`,
+        config: `/${service_name}/${ssm_stage_name}/get-restaurants/config`,
       },
     })
   )

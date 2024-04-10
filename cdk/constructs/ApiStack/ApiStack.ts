@@ -1,4 +1,4 @@
-import { CfnOutput, Fn, Stack, StackProps } from "aws-cdk-lib";
+import { CfnOutput, CfnParameter, Fn, Stack, StackProps } from "aws-cdk-lib";
 import {
   AuthorizationType,
   CfnAuthorizer,
@@ -10,10 +10,12 @@ import { Table } from "aws-cdk-lib/aws-dynamodb";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
 
 interface ApiStackProps extends StackProps {
   stageName: "dev" | "stage" | "prod";
+  ssmStageName: string;
   restaurantsTable: Table;
   cognitoUserPool: UserPool;
   webUserPoolClient: UserPoolClient;
@@ -24,6 +26,11 @@ interface ApiStackProps extends StackProps {
 export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
+
+    new CfnParameter(this, "KmsArnParameter", {
+      type: "AWS::SSM::Parameter::Value<String>",
+      default: `/${props.serviceName}/${props.ssmStageName}/kmsArn`,
+    });
 
     const api = new RestApi(this, `${props.stageName}-MyApi`, {
       deployOptions: {
@@ -61,7 +68,7 @@ export class ApiStack extends Stack {
         actions: ["execute-api:Invoke"],
         resources: [
           Fn.sub(
-            `arn:aws:execute-api:\${AWS::Region}:\${AWS::AccountId}:\${${apiLogicalId}}/${props.stageName}/GET/restaurants`
+            `arn:aws:execute-api:\${AWS::Region}:\${AWS::AccountId}:\${${apiLogicalId}}/${props.ssmStageName}/GET/restaurants`
           ),
         ],
       })
@@ -72,9 +79,11 @@ export class ApiStack extends Stack {
       handler: "handler",
       entry: "functions/getRestaurants/getRestaurants.ts",
       environment: {
+        middy_cache_enabled: "true",
+        middy_cache_expiry_milliseconds: "60000", // 1 minute
         restaurants_table: props.restaurantsTable.tableName,
         service_name: props.serviceName,
-        stage_name: props.stageName,
+        ssm_stage_name: props.stageName,
       },
     });
     props.restaurantsTable.grantReadData(getRestaurantsFunction);
@@ -84,7 +93,7 @@ export class ApiStack extends Stack {
         actions: ["ssm:GetParameters*"],
         resources: [
           Fn.sub(
-            `arn:aws:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter/${props.serviceName}/${props.stageName}/get-restaurants/config`
+            `arn:aws:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter/${props.serviceName}/${props.ssmStageName}/get-restaurants/config`
           ),
         ],
       })
@@ -98,9 +107,11 @@ export class ApiStack extends Stack {
         handler: "handler",
         entry: "functions/searchRestaurants/searchRestaurants.ts",
         environment: {
+          middy_cache_enabled: "true",
+          middy_cache_expiry_milliseconds: "60000", // 1 minute
           restaurants_table: props.restaurantsTable.tableName,
           service_name: props.serviceName,
-          stage_name: props.stageName,
+          ssm_stage_name: props.stageName,
         },
       }
     );
@@ -113,7 +124,17 @@ export class ApiStack extends Stack {
           Fn.sub(
             `arn:aws:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter/${props.serviceName}/${props.stageName}/search-restaurants/config`
           ),
+          Fn.sub(
+            `arn:aws:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter/${props.serviceName}/${props.stageName}/search-restaurants/secretString`
+          ),
         ],
+      })
+    );
+    searchRestaurantsFunction.role?.addToPrincipalPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["kms:Decrypt"],
+        resources: [Fn.ref("KmsArnParameter")],
       })
     );
 
@@ -154,6 +175,11 @@ export class ApiStack extends Stack {
 
     new CfnOutput(this, "CognitoServerClientId", {
       value: props.serverUserPoolClient.userPoolClientId,
+    });
+
+    new StringParameter(this, "ApiUrlParameter", {
+      parameterName: `/${props.serviceName}/${props.ssmStageName}/service-url`,
+      stringValue: api.url ?? "Something went wrong with the deployment",
     });
   }
 }

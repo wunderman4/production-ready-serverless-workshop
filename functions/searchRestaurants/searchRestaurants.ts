@@ -4,8 +4,12 @@ import middy from "@middy/core";
 import ssm from "@middy/ssm";
 import { Context } from "aws-lambda";
 
-const { service_name, stage_name } = process.env;
+const { service_name, ssm_stage_name } = process.env;
 const tableName = process.env.restaurants_table;
+const middyCacheEnabled = JSON.parse(process.env.middy_cache_enabled || "true");
+const middyCacheExpiryMilliseconds = parseInt(
+  process.env.middy_cache_expiry_milliseconds || "60000"
+);
 const dynamoClient = new DynamoDBClient();
 const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
 
@@ -36,11 +40,12 @@ interface SearchRestaurantsContext extends Context {
 export const handler = middy<any, any, Error, SearchRestaurantsContext>()
   .use(
     ssm({
-      cache: true,
-      cacheExpiry: 1 * 60 * 1000, // 1 minute
+      cache: middyCacheEnabled,
+      cacheExpiry: middyCacheExpiryMilliseconds,
       setToContext: true,
       fetchData: {
-        config: `/${service_name}/${stage_name}/search-restaurants/config`,
+        config: `/${service_name}/${ssm_stage_name}/search-restaurants/config`,
+        secretString: `/${service_name}/${ssm_stage_name}/search-restaurants/secretString`,
       },
     })
   )
