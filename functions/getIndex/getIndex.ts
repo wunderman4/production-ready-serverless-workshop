@@ -6,10 +6,11 @@ import * as URL from "url";
 // Not sure why this has to be a require but the import doesn't work, and their docs also use require...
 const mustache = require("mustache");
 
-const restaurantsApiRoot = process.env.restaurants_api || "";
-const cognitoUserPoolId = process.env.cognito_user_pool_id;
-const cognitoClientId = process.env.cognito_client_id;
 const awsRegion = process.env.AWS_REGION;
+const cognitoClientId = process.env.cognito_client_id;
+const cognitoUserPoolId = process.env.cognito_user_pool_id;
+const ordersApiRoot = process.env.orders_api || "";
+const restaurantsApiRoot = process.env.restaurants_api || "";
 const days = [
   "Sunday",
   "Monday",
@@ -50,6 +51,7 @@ export const handler: Handler = async (event, context) => {
     dayOfWeek,
     restaurants,
     searchUrl: `${restaurantsApiRoot}/search`,
+    placeOrderUrl: `${ordersApiRoot}`,
   });
 
   return {

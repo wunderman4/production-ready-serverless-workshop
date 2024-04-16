@@ -90,3 +90,17 @@ export const weInvokeSearchRestaurants = (theme: string) => {
   };
   return viaHandler(event, "search-restaurants");
 };
+
+export const weInvokePlaceOrder = async (user, restaurantName) => {
+  const body = JSON.stringify({ restaurantName });
+
+  switch (mode) {
+    case "handler":
+      return await viaHandler({ body }, "place-order");
+    case "http":
+      const auth = user.idToken;
+      return await viaHttp("orders", "POST", { body, auth });
+    default:
+      throw new Error(`unsupported mode: ${mode}`);
+  }
+};

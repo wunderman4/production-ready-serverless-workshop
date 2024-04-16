@@ -7,6 +7,7 @@ import {
 } from "aws-cdk-lib/aws-apigateway";
 import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { Table } from "aws-cdk-lib/aws-dynamodb";
+import { EventBus } from "aws-cdk-lib/aws-events";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
@@ -21,6 +22,7 @@ interface ApiStackProps extends StackProps {
   webUserPoolClient: UserPoolClient;
   serverUserPoolClient: UserPoolClient;
   serviceName: string;
+  orderEventBus: EventBus;
 }
 
 export class ApiStack extends Stack {
@@ -55,11 +57,14 @@ export class ApiStack extends Stack {
         },
       },
       environment: {
+        cognito_client_id: props.webUserPoolClient.userPoolClientId,
+        cognito_user_pool_id: props.cognitoUserPool.userPoolId,
+        orders_api: Fn.sub(
+          `https://\${${apiLogicalId}}.execute-api.\${AWS::Region}.amazonaws.com/${props.stageName}/orders`
+        ),
         restaurants_api: Fn.sub(
           `https://\${${apiLogicalId}}.execute-api.\${AWS::Region}.amazonaws.com/${props.stageName}/restaurants`
         ),
-        cognito_user_pool_id: props.cognitoUserPool.userPoolId,
-        cognito_client_id: props.webUserPoolClient.userPoolClientId,
       },
     });
     getIndexFunction.role?.addToPrincipalPolicy(
@@ -138,12 +143,25 @@ export class ApiStack extends Stack {
       })
     );
 
+    const placeOrderFunction = new NodejsFunction(this, "PlaceOrder", {
+      runtime: Runtime.NODEJS_20_X,
+      handler: "handler",
+      entry: "functions/placeOrder/placeOrder.ts",
+      environment: {
+        bus_name: props.orderEventBus.eventBusName,
+      },
+    });
+    props.orderEventBus.grantPutEventsTo(placeOrderFunction);
+
     const getIndexLambdaIntegration = new LambdaIntegration(getIndexFunction);
     const getRestaurantsLambdaIntegration = new LambdaIntegration(
       getRestaurantsFunction
     );
     const searchRestaurantsLambdaIntegration = new LambdaIntegration(
       searchRestaurantsFunction
+    );
+    const placeOrderLambdaIntegration = new LambdaIntegration(
+      placeOrderFunction
     );
 
     const cognitoAuthorizer = new CfnAuthorizer(this, "CognitoAuthorizer", {
@@ -163,6 +181,15 @@ export class ApiStack extends Stack {
     restaurantResource
       .addResource("search")
       .addMethod("POST", searchRestaurantsLambdaIntegration, {
+        authorizationType: AuthorizationType.COGNITO,
+        authorizer: {
+          authorizerId: cognitoAuthorizer.ref,
+        },
+      });
+
+    api.root
+      .addResource("orders")
+      .addMethod("POST", placeOrderLambdaIntegration, {
         authorizationType: AuthorizationType.COGNITO,
         authorizer: {
           authorizerId: cognitoAuthorizer.ref,

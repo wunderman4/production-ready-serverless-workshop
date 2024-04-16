@@ -9,15 +9,18 @@
     "watch": "tsc -w",
     "test": "cross-env TEST_MODE=handler jest",
     "test:e2e": "cross-env TEST_MODE=http jest",
+    "seedData": "npx ts-node constants/seedData/seedRestaurants.ts",
     "cdk": "cdk",
     "deploy": "npm run build && cdk deploy --all",
     "extractEnvVars": "./export-env.sh ApiStack-dev us-east-1"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "3.540.0",
+    "@aws-sdk/client-eventbridge": "3.552.0",
     "@aws-sdk/lib-dynamodb": "3.540.0",
     "@types/aws-lambda": "8.10.136",
     "@types/aws4": "1.11.6",
+    "@types/chance": "1.1.6",
     "@types/jest": "29.5.12",
     "@types/lodash": "4.17.0",
     "@types/mustache": "4.2.5",
@@ -33,12 +36,13 @@
     "typescript": "5.3.3"
   },
   "dependencies": {
-    "@aws-sdk/client-ssm": "^3.549.0",
+    "@aws-sdk/client-ssm": "3.549.0",
     "@middy/core": "4.7.0",
     "@middy/ssm": "4.7.0",
     "aws-cdk-lib": "2.133.0",
     "aws4": "1.12.0",
     "axios": "1.6.8",
+    "chance": "1.1.11",
     "constructs": "10.0.0",
     "lodash": "4.17.21",
     "mustache": "4.2.0",

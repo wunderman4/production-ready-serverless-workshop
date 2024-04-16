@@ -4,9 +4,10 @@ import "source-map-support/register";
 import { ApiStack } from "./constructs/ApiStack/ApiStack";
 import { CognitoStack } from "./constructs/CognitoStack/CognitoStack";
 import { DatabaseStack } from "./constructs/DatabaseStack/DatabaseStack";
+import { EventsStack } from "./constructs/EventsStack/EventsStack";
 
 const app = new cdk.App();
-
+const serviceName = "cdk-bootstrap";
 let stageName = app.node.tryGetContext("stageName");
 let ssmStageName = app.node.tryGetContext("ssmStageName");
 
@@ -28,14 +29,21 @@ const cognitoStack = new CognitoStack(app, `CognitoStack-${stageName}`, {
   stageName,
 });
 
+const eventsStack = new EventsStack(app, `EventsStack-${stageName}`, {
+  stageName,
+  serviceName,
+  ssmStageName,
+});
+
 new ApiStack(app, `ApiStack-${stageName}`, {
-  serviceName: "cdk-bootstrap",
+  serviceName,
   stageName,
   ssmStageName,
   restaurantsTable: dbStack.restaurantsTable,
   cognitoUserPool: cognitoStack.cognitoUserPool,
   webUserPoolClient: cognitoStack.webUserPoolClient,
   serverUserPoolClient: cognitoStack.serverUserPoolClient,
+  orderEventBus: eventsStack.orderEventBus,
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
