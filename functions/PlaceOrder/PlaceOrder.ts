@@ -4,7 +4,7 @@ import {
 } from "@aws-sdk/client-eventbridge";
 import { Handler } from "aws-lambda";
 import * as init from "chance";
-const busName = process.env.BUS_NAME || "bus-name-not-set";
+const busName = process.env.bus_name || "bus-name-not-set";
 
 const eventBridge = new EventBridgeClient();
 const chance = init.Chance();
