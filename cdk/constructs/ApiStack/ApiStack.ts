@@ -29,17 +29,39 @@ export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    new CfnParameter(this, "KmsArnParameter", {
-      type: "AWS::SSM::Parameter::Value<String>",
-      default: `/${props.serviceName}/${props.ssmStageName}/kmsArn`,
-    });
+    this.declareParameters(props);
 
     const api = new RestApi(this, `${props.stageName}-MyApi`, {
       deployOptions: {
         stageName: props.stageName,
       },
     });
-    // @ts-ignore - TODO: fix this one.
+
+    const getIndex = this.declareGetIndexFunction(props, api);
+    const getRestaurants = this.declareGetRestaurantsFunction(props);
+    const searchRestaurants = this.declareSearchRestaurantsFunction(props);
+    const placeOrder = this.declarePlaceOrderFunction(props);
+
+    this.declareApiEndpoints(props, api, {
+      getIndex,
+      getRestaurants,
+      searchRestaurants,
+      placeOrder,
+    });
+
+    this.declareOutputs(props, api);
+  }
+
+  // FIXME: reduce props to only needed ones...
+  private declareParameters(props: ApiStackProps) {
+    new CfnParameter(this, "KmsArnParameter", {
+      type: "AWS::SSM::Parameter::Value<String>",
+      default: `/${props.serviceName}/${props.ssmStageName}/kmsArn`,
+    });
+  }
+
+  private declareGetIndexFunction(props: ApiStackProps, api: RestApi) {
+    // @ts-ignore - FIXME: something about construct no c element...
     const apiLogicalId = this.getLogicalId(api.node.defaultChild);
 
     const getIndexFunction = new NodejsFunction(this, "GetIndex", {
@@ -67,6 +89,7 @@ export class ApiStack extends Stack {
         ),
       },
     });
+
     getIndexFunction.role?.addToPrincipalPolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
@@ -78,7 +101,10 @@ export class ApiStack extends Stack {
         ],
       })
     );
+    return getIndexFunction;
+  }
 
+  private declareGetRestaurantsFunction(props: ApiStackProps) {
     const getRestaurantsFunction = new NodejsFunction(this, "GetRestaurants", {
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
@@ -103,7 +129,10 @@ export class ApiStack extends Stack {
         ],
       })
     );
+    return getRestaurantsFunction;
+  }
 
+  private declareSearchRestaurantsFunction(props: ApiStackProps) {
     const searchRestaurantsFunction = new NodejsFunction(
       this,
       "SearchRestaurants",
@@ -142,7 +171,10 @@ export class ApiStack extends Stack {
         resources: [Fn.ref("KmsArnParameter")],
       })
     );
+    return searchRestaurantsFunction;
+  }
 
+  private declarePlaceOrderFunction(props: ApiStackProps) {
     const placeOrderFunction = new NodejsFunction(this, "PlaceOrder", {
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
@@ -152,18 +184,19 @@ export class ApiStack extends Stack {
       },
     });
     props.orderEventBus.grantPutEventsTo(placeOrderFunction);
+    return placeOrderFunction;
+  }
 
-    const getIndexLambdaIntegration = new LambdaIntegration(getIndexFunction);
-    const getRestaurantsLambdaIntegration = new LambdaIntegration(
-      getRestaurantsFunction
-    );
-    const searchRestaurantsLambdaIntegration = new LambdaIntegration(
-      searchRestaurantsFunction
-    );
-    const placeOrderLambdaIntegration = new LambdaIntegration(
-      placeOrderFunction
-    );
-
+  private declareApiEndpoints(
+    props: ApiStackProps,
+    api: RestApi,
+    functions: {
+      getIndex: NodejsFunction;
+      getRestaurants: NodejsFunction;
+      searchRestaurants: NodejsFunction;
+      placeOrder: NodejsFunction;
+    }
+  ) {
     const cognitoAuthorizer = new CfnAuthorizer(this, "CognitoAuthorizer", {
       identitySource: "method.request.header.Authorization",
       name: "CognitoAuthorizer",
@@ -172,30 +205,41 @@ export class ApiStack extends Stack {
       type: "COGNITO_USER_POOLS",
     });
 
-    api.root.addMethod("GET", getIndexLambdaIntegration);
+    // GET /
+    api.root.addMethod("GET", new LambdaIntegration(functions.getIndex));
 
     const restaurantResource = api.root.addResource("restaurants");
-    restaurantResource.addMethod("GET", getRestaurantsLambdaIntegration, {
-      authorizationType: AuthorizationType.IAM,
-    });
+
+    // GET /restaurants
+    restaurantResource.addMethod(
+      "GET",
+      new LambdaIntegration(functions.getRestaurants),
+      { authorizationType: AuthorizationType.IAM }
+    );
+
+    // POST /search
     restaurantResource
       .addResource("search")
-      .addMethod("POST", searchRestaurantsLambdaIntegration, {
+      .addMethod("POST", new LambdaIntegration(functions.searchRestaurants), {
         authorizationType: AuthorizationType.COGNITO,
         authorizer: {
           authorizerId: cognitoAuthorizer.ref,
         },
       });
+
+    // POST /orders
 
     api.root
       .addResource("orders")
-      .addMethod("POST", placeOrderLambdaIntegration, {
+      .addMethod("POST", new LambdaIntegration(functions.placeOrder), {
         authorizationType: AuthorizationType.COGNITO,
         authorizer: {
           authorizerId: cognitoAuthorizer.ref,
         },
       });
+  }
 
+  private declareOutputs(props: ApiStackProps, api: RestApi) {
     new CfnOutput(this, "ApiUrl", {
       value: api.url ?? "Something went wrong with the deployment",
     });
